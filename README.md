@@ -66,6 +66,7 @@ POST /consultar-empresa
 | Parâmetro | Tipo | Descrição | Valores Aceitos |
 |-----------|------|-----------|-----------------|
 | `tipo_resultado` | string | Tipo de resposta desejada | "simples", "completo", "simple", "completo" |
+| `limite_por_cnae` | number | Máximo de empresas por CNAE | 0-1000 (padrão: 100) |
 
 ## 📝 Exemplos de Uso
 
@@ -80,25 +81,27 @@ curl -X POST http://localhost:3000/consultar-empresa \
 }'
 ```
 
-### 🔸 Múltiplas Consultas (Todos os resultados em uma resposta)
+### 🔸 Múltiplas Consultas com Limite (25 empresas por CNAE)
 ```bash
 curl -X POST http://localhost:3000/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
   "apiKey": "sua_chave_da_casa_dos_dados",
   "cnaes": ["7112000", "6201500", "6204000", "8599604"],
-  "tipo_resultado": "simples"
+  "tipo_resultado": "simples",
+  "limite_por_cnae": 25
 }'
 ```
 
-### 🔸 Consulta Completa (Múltiplos CNAEs)
+### 🔸 Todas as Empresas (Sem limite)
 ```bash
 curl -X POST http://localhost:3000/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
   "apiKey": "sua_chave_da_casa_dos_dados",
   "cnaes": ["7112000", "6201500"],
-  "tipo_resultado": "completo"
+  "tipo_resultado": "completo",
+  "limite_por_cnae": 0
 }'
 ```
 
@@ -112,43 +115,88 @@ const response = await fetch('http://localhost:3000/consultar-empresa', {
   body: JSON.stringify({
     apiKey: 'sua_chave_da_casa_dos_dados',
     cnaes: ['7112000', '6201500', '6204000'], // Múltiplos CNAEs
-    tipo_resultado: 'simples'
+    tipo_resultado: 'simples',
+    limite_por_cnae: 30 // Máximo 30 empresas por CNAE
   })
 });
 
 const dados = await response.json();
-console.log('Total de CNAEs consultados:', dados.meta_informacoes.total_cnaes_consultados);
-console.log('Resultados:', dados);
+console.log('Total de empresas:', dados.estatisticas.total_empresas);
+console.log('CNAEs consultados:', dados.estatisticas.cnaes_consultados);
+console.log('Empresas consolidadas:', dados.empresas);
+```
+
+## 🎯 Controle de Limite por CNAE
+
+### 📊 **Parâmetro `limite_por_cnae`**
+- **Padrão:** 100 empresas por CNAE
+- **Mínimo:** 0 (retorna todas as empresas)
+- **Máximo:** 1000 empresas por CNAE
+- **Flexível:** Cada CNAE respeitará o mesmo limite
+
+### 💡 **Casos de Uso**
+```json
+{
+  "limite_por_cnae": 10,    // Apenas 10 empresas por CNAE
+  "limite_por_cnae": 50,    // 50 empresas por CNAE
+  "limite_por_cnae": 0,     // Todas as empresas (sem limite)
+  "limite_por_cnae": 1000   // Máximo permitido
+}
 ```
 
 ## 🚀 Vantagens das Múltiplas Consultas
 
-### ✅ **Eficiência Máxima**
+### ✅ **Eficiência e Controle Máximo**
 - **Uma única requisição** para múltiplos CNAEs
+- **Controle preciso** do número de empresas por CNAE
 - **Reduz custos** da API da Casa dos Dados
 - **Perfeito para automações** (n8n, Zapier, etc.)
-- **Todos os resultados organizados** em uma resposta
+- **Todos os resultados consolidados** em uma resposta
+- **Estatísticas detalhadas** por CNAE
 
-### 📊 **Exemplo de Resposta (Múltiplos CNAEs)**
+### 📊 **Exemplo de Resposta Consolidada**
 ```json
 {
-  "data": [
+  "empresas": [
     {
-      "cnae": "7112000",
-      "empresas": [...],
-      "total": 150
+      "cnpj": "12345678000190",
+      "razao_social": "Tech Solutions Ltda",
+      "nome_fantasia": "TechSol",
+      "cnae_consultado": "7112000",
+      "indice_cnae": 1
     },
     {
-      "cnae": "6201500", 
-      "empresas": [...],
-      "total": 89
+      "cnpj": "98765432000111",
+      "razao_social": "Dev Company SA",
+      "nome_fantasia": "DevCorp",
+      "cnae_consultado": "6201500",
+      "indice_cnae": 2
     }
   ],
-  "meta_informacoes": {
-    "total_cnaes_consultados": 2,
-    "cnaes_consultados": ["7112000", "6201500"],
-    "tipo_resultado": "simple",
-    "timestamp": "2025-08-06T14:30:00.000Z"
+  "estatisticas": {
+    "total_empresas": 150,
+    "total_cnaes_consultados": 3,
+    "limite_por_cnae": 50,
+    "cnaes_consultados": ["7112000", "6201500", "6204000"]
+  },
+  "resumo_por_cnae": {
+    "7112000": {
+      "total_encontradas": 200,
+      "total_retornadas": 50,
+      "limitado": true,
+      "empresas_omitidas": 150
+    },
+    "6201500": {
+      "total_encontradas": 45,
+      "total_retornadas": 45,
+      "limitado": false,
+      "empresas_omitidas": 0
+    }
+  },
+  "meta": {
+    "timestamp": "2025-08-06T14:30:00.000Z",
+    "formato": "consolidado_unico",
+    "versao_api": "1.0.0"
   }
 }
 ```

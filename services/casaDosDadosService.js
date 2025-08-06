@@ -10,14 +10,15 @@ class CasaDosDadosService {
    * @param {string} apiKey - Chave da API da Casa dos Dados
    * @param {string|string[]} cnae - Código CNAE ou array de códigos para pesquisa
    * @param {string} tipoResultado - Tipo do resultado (simple ou completo)
+   * @param {number} limitePorCnae - Número máximo de empresas por CNAE (padrão: 100)
    * @returns {Promise<Object>} Resposta da API externa
    */
-  async consultarPorCnae(apiKey, cnae, tipoResultado = 'simple') {
+  async consultarPorCnae(apiKey, cnae, tipoResultado = 'simple', limitePorCnae = 100) {
     try {
       // Converter para array se for string única
       const cnaes = Array.isArray(cnae) ? cnae : [cnae];
       
-      console.log(`🔍 Consultando CNAEs: ${cnaes.join(', ')} | Tipo: ${tipoResultado}`);
+      console.log(`🔍 Consultando CNAEs: ${cnaes.join(', ')} | Tipo: ${tipoResultado} | Limite por CNAE: ${limitePorCnae}`);
       
       // Preparar headers
       const headers = {
@@ -29,6 +30,11 @@ class CasaDosDadosService {
       const params = {};
       if (tipoResultado && (tipoResultado === 'simple' || tipoResultado === 'completo')) {
         params.tipo_resultado = tipoResultado;
+      }
+
+      // Adicionar limite se especificado
+      if (limitePorCnae && limitePorCnae > 0) {
+        params.limite = limitePorCnae;
       }
 
       // Preparar corpo da requisição com todos os CNAEs
@@ -54,7 +60,8 @@ class CasaDosDadosService {
         success: true,
         data: response.data,
         status: response.status,
-        total_cnaes_consultados: cnaes.length
+        total_cnaes_consultados: cnaes.length,
+        limite_por_cnae: limitePorCnae
       };
 
     } catch (error) {
@@ -119,6 +126,100 @@ class CasaDosDadosService {
   }
 
   /**
+   * Processa e consolida os resultados em um único output
+   * @param {Object} dadosOriginais - Dados da API da Casa dos Dados
+   * @param {string[]} cnaesConsultados - Lista dos CNAEs consultados
+   * @param {number} limitePorCnae - Limite aplicado por CNAE
+   * @returns {Object} Dados consolidados em formato único
+   */
+  consolidarResultados(dadosOriginais, cnaesConsultados, limitePorCnae) {
+    try {
+      console.log('🔄 Consolidando resultados em output único...');
+      
+      const empresasConsolidadas = [];
+      let totalEmpresas = 0;
+      const resumoPorCnae = {};
+
+      // Processar dados por CNAE (formato depende da resposta da Casa dos Dados)
+      cnaesConsultados.forEach((cnae, index) => {
+        const dadosCnae = dadosOriginais.data?.[index] || dadosOriginais[index] || [];
+        const empresasCnae = Array.isArray(dadosCnae) ? dadosCnae : dadosCnae.empresas || [];
+        
+        // Limitar empresas por CNAE se necessário
+        const empresasLimitadas = limitePorCnae > 0 
+          ? empresasCnae.slice(0, limitePorCnae)
+          : empresasCnae;
+
+        // Adicionar CNAE aos dados de cada empresa
+        const empresasComCnae = empresasLimitadas.map(empresa => ({
+          ...empresa,
+          cnae_consultado: cnae,
+          indice_cnae: index + 1
+        }));
+
+        empresasConsolidadas.push(...empresasComCnae);
+        totalEmpresas += empresasLimitadas.length;
+
+        // Resumo por CNAE
+        resumoPorCnae[cnae] = {
+          total_encontradas: empresasCnae.length,
+          total_retornadas: empresasLimitadas.length,
+          limitado: empresasCnae.length > limitePorCnae,
+          empresas_omitidas: Math.max(0, empresasCnae.length - limitePorCnae)
+        };
+      });
+
+      const resultado = {
+        // Dados consolidados
+        empresas: empresasConsolidadas,
+        
+        // Estatísticas gerais
+        estatisticas: {
+          total_empresas: totalEmpresas,
+          total_cnaes_consultados: cnaesConsultados.length,
+          limite_por_cnae: limitePorCnae,
+          cnaes_consultados: cnaesConsultados
+        },
+        
+        // Resumo detalhado por CNAE
+        resumo_por_cnae: resumoPorCnae,
+        
+        // Meta informações
+        meta: {
+          timestamp: new Date().toISOString(),
+          formato: 'consolidado_unico',
+          versao_api: '1.0.0'
+        }
+      };
+
+      console.log(`✅ Consolidação concluída: ${totalEmpresas} empresas de ${cnaesConsultados.length} CNAEs`);
+      
+      return resultado;
+
+    } catch (error) {
+      console.error('❌ Erro na consolidação:', error.message);
+      
+      // Retorno de fallback em caso de erro
+      return {
+        empresas: [],
+        estatisticas: {
+          total_empresas: 0,
+          total_cnaes_consultados: cnaesConsultados.length,
+          limite_por_cnae: limitePorCnae,
+          cnaes_consultados: cnaesConsultados
+        },
+        erro_consolidacao: error.message,
+        dados_originais: dadosOriginais,
+        meta: {
+          timestamp: new Date().toISOString(),
+          formato: 'consolidado_com_erro',
+          versao_api: '1.0.0'
+        }
+      };
+    }
+  }
+
+  /**
    * Valida se o CNAE está no formato correto
    * @param {string} cnae - Código CNAE
    * @returns {boolean} Se é válido
@@ -158,6 +259,35 @@ class CasaDosDadosService {
       totalValidos: validos.length,
       totalInvalidos: invalidos.length
     };
+  }
+
+  /**
+   * Valida o limite por CNAE
+   * @param {number} limite - Limite de empresas por CNAE
+   * @returns {Object} Resultado da validação
+   */
+  validarLimite(limite) {
+    if (!limite && limite !== 0) {
+      return { valido: true, limite: 100 }; // Padrão
+    }
+
+    const limiteNum = parseInt(limite);
+    
+    if (isNaN(limiteNum) || limiteNum < 0) {
+      return { 
+        valido: false, 
+        erro: 'Limite deve ser um número inteiro maior ou igual a 0'
+      };
+    }
+
+    if (limiteNum > 1000) {
+      return { 
+        valido: false, 
+        erro: 'Limite máximo é 1000 empresas por CNAE'
+      };
+    }
+
+    return { valido: true, limite: limiteNum };
   }
 
   /**
