@@ -8,13 +8,16 @@ class CasaDosDadosService {
   /**
    * Consulta empresas por CNAE na API da Casa dos Dados
    * @param {string} apiKey - Chave da API da Casa dos Dados
-   * @param {string} cnae - Código CNAE para pesquisa
+   * @param {string|string[]} cnae - Código CNAE ou array de códigos para pesquisa
    * @param {string} tipoResultado - Tipo do resultado (simple ou completo)
    * @returns {Promise<Object>} Resposta da API externa
    */
   async consultarPorCnae(apiKey, cnae, tipoResultado = 'simple') {
     try {
-      console.log(`🔍 Consultando CNAE: ${cnae} | Tipo: ${tipoResultado}`);
+      // Converter para array se for string única
+      const cnaes = Array.isArray(cnae) ? cnae : [cnae];
+      
+      console.log(`🔍 Consultando CNAEs: ${cnaes.join(', ')} | Tipo: ${tipoResultado}`);
       
       // Preparar headers
       const headers = {
@@ -28,9 +31,9 @@ class CasaDosDadosService {
         params.tipo_resultado = tipoResultado;
       }
 
-      // Preparar corpo da requisição
+      // Preparar corpo da requisição com todos os CNAEs
       const body = {
-        codigo_atividade_principal: [cnae]
+        codigo_atividade_principal: cnaes
       };
 
       console.log('📤 Enviando requisição para Casa dos Dados...');
@@ -41,7 +44,7 @@ class CasaDosDadosService {
       const response = await axios.post(this.baseURL, body, {
         headers,
         params,
-        timeout: 30000 // 30 segundos de timeout
+        timeout: 60000 // 60 segundos de timeout para múltiplas consultas
       });
 
       console.log(`✅ Sucesso! Status: ${response.status}`);
@@ -50,7 +53,8 @@ class CasaDosDadosService {
       return {
         success: true,
         data: response.data,
-        status: response.status
+        status: response.status,
+        total_cnaes_consultados: cnaes.length
       };
 
     } catch (error) {
@@ -127,6 +131,33 @@ class CasaDosDadosService {
     
     // CNAE deve ter 7 dígitos
     return cnaeNumerico.length === 7;
+  }
+
+  /**
+   * Valida múltiplos CNAEs
+   * @param {string|string[]} cnaes - CNAE ou array de CNAEs
+   * @returns {Object} Resultado da validação
+   */
+  validarCnaes(cnaes) {
+    const cnaeArray = Array.isArray(cnaes) ? cnaes : [cnaes];
+    const invalidos = [];
+    const validos = [];
+
+    cnaeArray.forEach(cnae => {
+      if (this.validarCnae(cnae)) {
+        validos.push(cnae.replace(/\D/g, ''));
+      } else {
+        invalidos.push(cnae);
+      }
+    });
+
+    return {
+      validos,
+      invalidos,
+      todosSaoValidos: invalidos.length === 0,
+      totalValidos: validos.length,
+      totalInvalidos: invalidos.length
+    };
   }
 
   /**

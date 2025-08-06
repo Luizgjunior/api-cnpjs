@@ -8,12 +8,14 @@ API REST em Node.js para consultar empresas por código CNAE usando a [Casa dos 
 
 ## 📋 Funcionalidades
 
-- ✅ Consulta empresas por código CNAE
+- ✅ Consulta empresas por código CNAE (único ou múltiplos)
+- ✅ **Múltiplas consultas em uma única requisição**
 - ✅ Suporte a diferentes tipos de resultado (simples/completo)
 - ✅ Validação robusta de parâmetros
 - ✅ Tratamento de erros da API externa
 - ✅ Logs detalhados para debug
 - ✅ Pronto para deploy com Docker
+- ✅ **Ideal para automações e n8n**
 
 ## 🛠️ Tecnologias
 
@@ -54,7 +56,10 @@ POST /consultar-empresa
 | Parâmetro | Tipo | Descrição |
 |-----------|------|-----------|
 | `apiKey` | string | Sua chave de API da Casa dos Dados |
-| `cnae` | string | Código CNAE de 7 dígitos (ex: "7112000") |
+| `cnae` | string | Código CNAE de 7 dígitos (para consulta única) |
+| `cnaes` | array | Array de códigos CNAE (para múltiplas consultas) |
+
+**Nota:** Use `cnae` para consulta única ou `cnaes` para múltiplas consultas.
 
 ### Parâmetros Opcionais
 
@@ -64,7 +69,7 @@ POST /consultar-empresa
 
 ## 📝 Exemplos de Uso
 
-### Consulta Simples
+### 🔸 Consulta Única (CNAE Simples)
 ```bash
 curl -X POST http://localhost:3000/consultar-empresa \
 -H "Content-Type: application/json" \
@@ -75,18 +80,29 @@ curl -X POST http://localhost:3000/consultar-empresa \
 }'
 ```
 
-### Consulta Completa
+### 🔸 Múltiplas Consultas (Todos os resultados em uma resposta)
 ```bash
 curl -X POST http://localhost:3000/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
   "apiKey": "sua_chave_da_casa_dos_dados",
-  "cnae": "7112000",
+  "cnaes": ["7112000", "6201500", "6204000", "8599604"],
+  "tipo_resultado": "simples"
+}'
+```
+
+### 🔸 Consulta Completa (Múltiplos CNAEs)
+```bash
+curl -X POST http://localhost:3000/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "sua_chave_da_casa_dos_dados",
+  "cnaes": ["7112000", "6201500"],
   "tipo_resultado": "completo"
 }'
 ```
 
-### JavaScript/Fetch
+### 🔸 JavaScript/Fetch (Múltiplos CNAEs)
 ```javascript
 const response = await fetch('http://localhost:3000/consultar-empresa', {
   method: 'POST',
@@ -95,13 +111,46 @@ const response = await fetch('http://localhost:3000/consultar-empresa', {
   },
   body: JSON.stringify({
     apiKey: 'sua_chave_da_casa_dos_dados',
-    cnae: '7112000',
+    cnaes: ['7112000', '6201500', '6204000'], // Múltiplos CNAEs
     tipo_resultado: 'simples'
   })
 });
 
 const dados = await response.json();
-console.log(dados);
+console.log('Total de CNAEs consultados:', dados.meta_informacoes.total_cnaes_consultados);
+console.log('Resultados:', dados);
+```
+
+## 🚀 Vantagens das Múltiplas Consultas
+
+### ✅ **Eficiência Máxima**
+- **Uma única requisição** para múltiplos CNAEs
+- **Reduz custos** da API da Casa dos Dados
+- **Perfeito para automações** (n8n, Zapier, etc.)
+- **Todos os resultados organizados** em uma resposta
+
+### 📊 **Exemplo de Resposta (Múltiplos CNAEs)**
+```json
+{
+  "data": [
+    {
+      "cnae": "7112000",
+      "empresas": [...],
+      "total": 150
+    },
+    {
+      "cnae": "6201500", 
+      "empresas": [...],
+      "total": 89
+    }
+  ],
+  "meta_informacoes": {
+    "total_cnaes_consultados": 2,
+    "cnaes_consultados": ["7112000", "6201500"],
+    "tipo_resultado": "simple",
+    "timestamp": "2025-08-06T14:30:00.000Z"
+  }
+}
 ```
 
 ## 📊 Códigos CNAE Comuns

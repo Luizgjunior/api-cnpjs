@@ -6,6 +6,7 @@ const router = express.Router();
 /**
  * POST /consultar-empresa
  * Consulta empresas por CNAE usando a API da Casa dos Dados
+ * Aceita CNAE único ou múltiplos CNAEs
  */
 router.post('/', async (req, res) => {
   try {
@@ -14,7 +15,7 @@ router.post('/', async (req, res) => {
     console.log('Query params:', req.query);
 
     // Extrair dados do corpo da requisição
-    const { apiKey, cnae, tipo_resultado } = req.body;
+    const { apiKey, cnae, cnaes, tipo_resultado } = req.body;
 
     // Validações obrigatórias
     if (!apiKey) {
@@ -22,22 +23,35 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         erro: 'API Key é obrigatória',
         campo: 'apiKey',
-        exemplo: {
+        exemplo_cnae_unico: {
           apiKey: "sua_chave_aqui",
           cnae: "7112000",
+          tipo_resultado: "simples"
+        },
+        exemplo_multiplos_cnaes: {
+          apiKey: "sua_chave_aqui",
+          cnaes: ["7112000", "6201500", "6204000"],
           tipo_resultado: "simples"
         }
       });
     }
 
-    if (!cnae) {
+    // Aceitar tanto 'cnae' quanto 'cnaes'
+    const cnaeInput = cnaes || cnae;
+    
+    if (!cnaeInput) {
       console.log('❌ CNAE não fornecido');
       return res.status(400).json({
-        erro: 'CNAE é obrigatório',
-        campo: 'cnae',
-        exemplo: {
+        erro: 'CNAE é obrigatório. Use "cnae" para um único código ou "cnaes" para múltiplos',
+        campos_aceitos: ['cnae', 'cnaes'],
+        exemplo_cnae_unico: {
           apiKey: "sua_chave_aqui",
           cnae: "7112000",
+          tipo_resultado: "simples"
+        },
+        exemplo_multiplos_cnaes: {
+          apiKey: "sua_chave_aqui",
+          cnaes: ["7112000", "6201500", "6204000"],
           tipo_resultado: "simples"
         }
       });
@@ -52,15 +66,24 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Validar formato do CNAE
-    if (!casaDosDadosService.validarCnae(cnae)) {
-      console.log('❌ CNAE inválido');
+    // Validar CNAEs
+    const validacao = casaDosDadosService.validarCnaes(cnaeInput);
+    
+    if (!validacao.todosSaoValidos) {
+      console.log('❌ CNAEs inválidos encontrados:', validacao.invalidos);
       return res.status(400).json({
-        erro: 'CNAE deve ter 7 dígitos numéricos',
-        campo: 'cnae',
+        erro: 'Um ou mais CNAEs são inválidos',
+        cnaes_invalidos: validacao.invalidos,
+        cnaes_validos: validacao.validos,
+        total_invalidos: validacao.totalInvalidos,
+        total_validos: validacao.totalValidos,
+        regra: 'CNAE deve ter 7 dígitos numéricos',
         exemplo: 'CNAE válido: 7112000'
       });
     }
+
+    // Se chegou até aqui, todos os CNAEs são válidos
+    console.log(`✅ ${validacao.totalValidos} CNAE(s) válido(s):`, validacao.validos);
 
     // Validar tipo_resultado se fornecido
     const tiposValidos = ['simples', 'completo', 'simple', 'completo'];
@@ -79,12 +102,12 @@ router.post('/', async (req, res) => {
       tipoNormalizado = 'simple';
     }
 
-    console.log('✅ Validações passaram, consultando API externa...');
+    console.log(`✅ Validações passaram, consultando API externa com ${validacao.totalValidos} CNAE(s)...`);
 
-    // Chamar o serviço da Casa dos Dados
+    // Chamar o serviço da Casa dos Dados com todos os CNAEs
     const resultado = await casaDosDadosService.consultarPorCnae(
       apiKey,
-      cnae,
+      validacao.validos,
       tipoNormalizado
     );
 
@@ -92,8 +115,19 @@ router.post('/', async (req, res) => {
     if (resultado.success) {
       console.log('✅ Consulta realizada com sucesso');
       
-      // Retornar os dados originais da API externa
-      return res.status(200).json(resultado.data);
+      // Adicionar informações extras ao retorno
+      const resposta = {
+        ...resultado.data,
+        meta_informacoes: {
+          total_cnaes_consultados: resultado.total_cnaes_consultados,
+          cnaes_consultados: validacao.validos,
+          tipo_resultado: tipoNormalizado,
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      // Retornar os dados originais da API externa com informações extras
+      return res.status(200).json(resposta);
       
     } else {
       console.log('❌ Erro na consulta externa');
@@ -102,7 +136,8 @@ router.post('/', async (req, res) => {
       return res.status(resultado.status || 500).json({
         erro: resultado.error,
         detalhes: resultado.details,
-        origem: 'Casa dos Dados API'
+        origem: 'Casa dos Dados API',
+        cnaes_tentados: validacao.validos
       });
     }
 
@@ -125,29 +160,57 @@ router.get('/', (req, res) => {
   res.json({
     endpoint: 'POST /consultar-empresa',
     descrição: 'Consulta empresas por CNAE usando a API da Casa dos Dados',
+    suporte: 'CNAE único ou múltiplos CNAEs em uma única requisição',
     parametros_obrigatórios: {
       apiKey: 'Sua chave da API da Casa dos Dados',
-      cnae: 'Código CNAE de 7 dígitos (ex: 7112000)'
+      cnae: 'Código CNAE de 7 dígitos (para consulta única)',
+      cnaes: 'Array de códigos CNAE (para múltiplas consultas)'
     },
     parametros_opcionais: {
       tipo_resultado: 'Tipo do resultado: "simples", "completo", "simple" ou "completo"'
     },
-    exemplo: {
-      método: 'POST',
-      url: '/consultar-empresa',
-      body: {
-        apiKey: 'sua_chave_aqui',
-        cnae: '7112000',
-        tipo_resultado: 'simples'
+    exemplos: {
+      cnae_unico: {
+        método: 'POST',
+        url: '/consultar-empresa',
+        body: {
+          apiKey: 'sua_chave_aqui',
+          cnae: '7112000',
+          tipo_resultado: 'simples'
+        }
+      },
+      multiplos_cnaes: {
+        método: 'POST',
+        url: '/consultar-empresa',
+        body: {
+          apiKey: 'sua_chave_aqui',
+          cnaes: ['7112000', '6201500', '6204000'],
+          tipo_resultado: 'simples'
+        }
       }
     },
-    exemplo_curl: `curl -X POST http://localhost:3000/consultar-empresa \\
+    exemplos_curl: {
+      cnae_unico: `curl -X POST http://localhost:3000/consultar-empresa \\
 -H "Content-Type: application/json" \\
 -d '{
   "apiKey": "sua_chave_aqui",
   "cnae": "7112000",
   "tipo_resultado": "simples"
+}'`,
+      multiplos_cnaes: `curl -X POST http://localhost:3000/consultar-empresa \\
+-H "Content-Type: application/json" \\
+-d '{
+  "apiKey": "sua_chave_aqui",
+  "cnaes": ["7112000", "6201500", "6204000"],
+  "tipo_resultado": "simples"
 }'`
+    },
+    vantagens_multiplos: [
+      "Todos os resultados em uma única resposta",
+      "Menor uso de requests da API",
+      "Mais eficiente para automações",
+      "Ideal para uso no n8n"
+    ]
   });
 });
 
