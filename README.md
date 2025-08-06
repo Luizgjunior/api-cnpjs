@@ -69,6 +69,106 @@ POST /consultar-empresa
 | `tipo_resultado` | string | Tipo de resposta desejada | "simples", "completo", "simple", "completo" |
 | `limite_por_cnae` | number | Máximo de empresas por CNAE | 0-1000 (padrão: 100) |
 
+## 📚 Tutorial Completo
+
+### 🚀 **Passo 1: Obter API Key da Casa dos Dados**
+1. Acesse [Casa dos Dados](https://casadosdados.com.br/)
+2. Faça seu cadastro/login
+3. Obtenha sua API Key no painel
+4. Guarde a chave com segurança
+
+### 🎯 **Passo 2: Entender os Parâmetros**
+
+| Parâmetro | Obrigatório | Descrição | Exemplo |
+|-----------|-------------|-----------|---------|
+| `apiKey` | ✅ Sim | Sua chave da Casa dos Dados | `"abc123xyz"` |
+| `cnae` | ✅ Sim* | CNAE único (7 dígitos) | `"7112000"` |
+| `cnaes` | ✅ Sim* | Array de CNAEs | `["7112000", "6201500"]` |
+| `tipo_resultado` | ❌ Não | Tipo de dados | `"simples"` ou `"completo"` |
+| `limite_por_cnae` | ❌ Não | Máximo por CNAE | `25` (padrão: 100) |
+
+*Use `cnae` para 1 código OU `cnaes` para múltiplos
+
+### 🧪 **Passo 3: Primeiro Teste (Health Check)**
+```bash
+curl https://web-production-720d.up.railway.app/
+```
+**Resposta esperada:**
+```json
+{
+  "message": "API CNAE Empresas - Casa dos Dados",
+  "status": "ativo",
+  "endpoints": {
+    "consulta": "POST /consultar-empresa"
+  }
+}
+```
+
+### 🎲 **Passo 4: Teste Básico (CNAE Único)**
+```bash
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "SUA_CHAVE_AQUI",
+  "cnae": "7112000",
+  "limite_por_cnae": 10
+}'
+```
+
+### 🎯 **Passo 5: Teste Avançado (Múltiplos CNAEs)**
+```bash
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "SUA_CHAVE_AQUI",
+  "cnaes": ["7112000", "6201500", "6204000"],
+  "tipo_resultado": "simples",
+  "limite_por_cnae": 25
+}'
+```
+
+### 📊 **Passo 6: Entender a Resposta**
+
+**Estrutura da resposta consolidada:**
+```json
+{
+  "empresas": [
+    {
+      "cnpj": "12345678000190",
+      "razao_social": "Tech Solutions Ltda",
+      "nome_fantasia": "TechSol",
+      "cnae_consultado": "7112000",
+      "indice_cnae": 1
+    }
+  ],
+  "estatisticas": {
+    "total_empresas": 75,
+    "total_cnaes_consultados": 3,
+    "limite_por_cnae": 25,
+    "cnaes_consultados": ["7112000", "6201500", "6204000"]
+  },
+  "resumo_por_cnae": {
+    "7112000": {
+      "total_encontradas": 150,
+      "total_retornadas": 25,
+      "limitado": true,
+      "empresas_omitidas": 125
+    }
+  },
+  "meta": {
+    "timestamp": "2025-08-06T14:30:00.000Z",
+    "formato": "consolidado_unico",
+    "versao_api": "1.0.0"
+  }
+}
+```
+
+**Explicação dos campos:**
+- `empresas[]`: Array com todas as empresas consolidadas
+- `estatisticas{}`: Totais gerais da consulta
+- `resumo_por_cnae{}`: Detalhes específicos por CNAE
+- `meta{}`: Informações de controle e timestamp
+
 ## 📝 Exemplos de Uso
 
 ### 🔸 Consulta Única (CNAE Simples)
@@ -373,6 +473,127 @@ Desenvolvido com ❤️ para facilitar consultas de empresas por CNAE.
 
 ---
 
+## 🎓 Tutorial n8n Completo
+
+### **Passo 1: Configurar Workflow**
+1. Crie um novo workflow no n8n
+2. Adicione um **Manual Trigger**
+3. Conecte um **Set Node**
+4. Conecte um **HTTP Request Node**
+5. Adicione um **Function Node** (opcional)
+
+### **Passo 2: Configurar Set Node**
+```json
+{
+  "apiKey": "sua_chave_da_casa_dos_dados",
+  "cnaes": ["7112000", "6201500", "6204000"],
+  "limite": 30,
+  "tipo": "simples"
+}
+```
+
+### **Passo 3: Configurar HTTP Request Node**
+- **Method:** POST
+- **URL:** `https://web-production-720d.up.railway.app/consultar-empresa`
+- **Headers:** 
+  ```json
+  {
+    "Content-Type": "application/json"
+  }
+  ```
+- **Body:**
+  ```json
+  {
+    "apiKey": "{{ $json.apiKey }}",
+    "cnaes": "{{ $json.cnaes }}",
+    "tipo_resultado": "{{ $json.tipo }}",
+    "limite_por_cnae": "{{ $json.limite }}"
+  }
+  ```
+
+### **Passo 4: Function Node (Processar Dados)**
+```javascript
+// Extrair dados da resposta consolidada
+const response = $input.first().json;
+const empresas = response.empresas || [];
+
+console.log(`📊 ${response.estatisticas.total_empresas} empresas encontradas`);
+console.log(`🎯 ${response.estatisticas.total_cnaes_consultados} CNAEs consultados`);
+
+// Processar cada empresa
+return empresas.map((empresa, index) => ({
+  json: {
+    id: index + 1,
+    cnpj: empresa.cnpj,
+    nome: empresa.razao_social,
+    fantasia: empresa.nome_fantasia,
+    cnae: empresa.cnae_consultado,
+    processado_em: new Date().toISOString()
+  }
+}));
+```
+
+### **Passo 5: Executar e Verificar**
+1. Execute o workflow manualmente
+2. Verifique os logs no Function Node
+3. Confirme os dados processados
+
+## 🛠️ Exemplos cURL Completos
+
+### **🔥 Comando Mais Usado**
+```bash
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "SUA_CHAVE_AQUI",
+  "cnaes": ["7112000", "6201500", "6204000"],
+  "limite_por_cnae": 50
+}'
+```
+
+### **🎯 Para Automações**
+```bash
+# Múltiplos CNAEs com limite baixo (ideal para testes)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "SUA_CHAVE_AQUI",
+  "cnaes": ["7112000", "6201500", "6204000", "8599604"],
+  "tipo_resultado": "simples",
+  "limite_por_cnae": 10
+}'
+```
+
+### **🚀 Para Grandes Volumes**
+```bash
+# Sem limite (todas as empresas)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "SUA_CHAVE_AQUI",
+  "cnaes": ["7112000", "6201500"],
+  "tipo_resultado": "completo",
+  "limite_por_cnae": 0
+}'
+```
+
+### **🧪 Para Testes**
+```bash
+# Health Check
+curl https://web-production-720d.up.railway.app/
+
+# Documentação
+curl https://web-production-720d.up.railway.app/consultar-empresa
+
+# Teste de erro (CNAE inválido)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "teste",
+  "cnae": "123"
+}'
+```
+
 ## 🔗 Uso no n8n com Railway
 
 ### **HTTP Request Node (Produção)**
@@ -418,6 +639,88 @@ return dados.empresas.map(empresa => ({
   }
 }));
 ```
+
+---
+
+## ❓ FAQ e Troubleshooting
+
+### **🔥 Perguntas Frequentes**
+
+**Q: Quantos CNAEs posso consultar por vez?**
+A: Não há limite de CNAEs, mas cada CNAE respeita o `limite_por_cnae` (padrão: 100 empresas).
+
+**Q: Qual a diferença entre "simples" e "completo"?**
+A: Depende da API da Casa dos Dados. "simples" retorna dados básicos, "completo" inclui mais detalhes.
+
+**Q: Como sei se minha API Key está válida?**
+A: Faça um teste com um CNAE válido. Se retornar erro 401, a chave está inválida.
+
+**Q: Posso usar `limite_por_cnae: 0`?**
+A: Sim! Zero significa "sem limite" - retorna todas as empresas encontradas.
+
+**Q: O que significa "empresas_omitidas"?**
+A: É quantas empresas foram encontradas mas não retornadas devido ao limite.
+
+### **🔧 Soluções de Problemas**
+
+**❌ Erro 400 - "CNAE é obrigatório"**
+```bash
+# ❌ ERRADO
+{"apiKey": "abc123"}
+
+# ✅ CORRETO  
+{"apiKey": "abc123", "cnae": "7112000"}
+# OU
+{"apiKey": "abc123", "cnaes": ["7112000"]}
+```
+
+**❌ Erro 400 - "CNAE inválido"**
+```bash
+# ❌ ERRADO
+{"cnae": "123"}
+
+# ✅ CORRETO (7 dígitos)
+{"cnae": "7112000"}
+```
+
+**❌ Erro 401 - "API Key inválida"**
+- Verifique se a chave está correta
+- Confirme se tem saldo na Casa dos Dados
+- Teste no site da Casa dos Dados primeiro
+
+**❌ Erro 403 - "Acesso negado"**
+- Saldo insuficiente na Casa dos Dados
+- Plano expirado
+- Limite de requisições excedido
+
+**❌ "Timeout" ou sem resposta**
+- Reduza o número de CNAEs
+- Reduza o `limite_por_cnae`
+- Verifique sua conexão
+
+### **📊 Códigos de Resposta**
+
+| Código | Significado | Ação |
+|--------|-------------|------|
+| 200 | ✅ Sucesso | Dados retornados |
+| 400 | ❌ Dados inválidos | Verificar parâmetros |
+| 401 | ❌ API Key inválida | Verificar chave |
+| 403 | ❌ Acesso negado | Verificar saldo |
+| 500 | ❌ Erro interno | Tentar novamente |
+
+### **🎯 Dicas de Performance**
+
+1. **Para testes:** `limite_por_cnae: 10`
+2. **Para produção:** `limite_por_cnae: 50-100`
+3. **Para análises:** `limite_por_cnae: 0` (sem limite)
+4. **Múltiplos CNAEs:** Máximo 5-10 por vez
+5. **Use cache:** Salve resultados para evitar repetir consultas
+
+### **📞 Suporte**
+
+- **Bug no código:** Abra uma issue no GitHub
+- **Dúvidas da API Casa dos Dados:** Contato direto com eles
+- **Deploy Railway:** Documentação oficial do Railway
 
 ---
 
