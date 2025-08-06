@@ -42,7 +42,8 @@ npm install
 npm start
 ```
 
-O servidor estará rodando em `http://localhost:3000`
+**Servidor local:** `http://localhost:3000`  
+**Produção (Railway):** `https://web-production-720d.up.railway.app`
 
 ## 🔑 Como Usar
 
@@ -72,6 +73,16 @@ POST /consultar-empresa
 
 ### 🔸 Consulta Única (CNAE Simples)
 ```bash
+# Produção (Railway)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
+-H "Content-Type: application/json" \
+-d '{
+  "apiKey": "sua_chave_da_casa_dos_dados",
+  "cnae": "7112000",
+  "tipo_resultado": "simples"
+}'
+
+# Local
 curl -X POST http://localhost:3000/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
@@ -83,7 +94,8 @@ curl -X POST http://localhost:3000/consultar-empresa \
 
 ### 🔸 Múltiplas Consultas com Limite (25 empresas por CNAE)
 ```bash
-curl -X POST http://localhost:3000/consultar-empresa \
+# Produção (Railway)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
   "apiKey": "sua_chave_da_casa_dos_dados",
@@ -95,7 +107,8 @@ curl -X POST http://localhost:3000/consultar-empresa \
 
 ### 🔸 Todas as Empresas (Sem limite)
 ```bash
-curl -X POST http://localhost:3000/consultar-empresa \
+# Produção (Railway)
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{
   "apiKey": "sua_chave_da_casa_dos_dados",
@@ -107,7 +120,8 @@ curl -X POST http://localhost:3000/consultar-empresa \
 
 ### 🔸 JavaScript/Fetch (Múltiplos CNAEs)
 ```javascript
-const response = await fetch('http://localhost:3000/consultar-empresa', {
+// Produção (Railway)
+const response = await fetch('https://web-production-720d.up.railway.app/consultar-empresa', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -320,12 +334,17 @@ A API gera logs detalhados para debug:
 
 ### Health Check
 ```bash
+# Produção
+curl https://web-production-720d.up.railway.app/
+
+# Local
 curl http://localhost:3000/
 ```
 
 ### Teste com CNAE inválido
 ```bash
-curl -X POST http://localhost:3000/consultar-empresa \
+# Produção
+curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \
 -H "Content-Type: application/json" \
 -d '{"apiKey": "teste", "cnae": "123"}'
 ```
@@ -351,6 +370,54 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para de
 ## 👨‍💻 Autor
 
 Desenvolvido com ❤️ para facilitar consultas de empresas por CNAE.
+
+---
+
+## 🔗 Uso no n8n com Railway
+
+### **HTTP Request Node (Produção)**
+```json
+{
+  "method": "POST", 
+  "url": "https://web-production-720d.up.railway.app/consultar-empresa",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "apiKey": "{{ $json.apiKey }}",
+    "cnaes": "{{ $json.cnaes }}",
+    "limite_por_cnae": "{{ $json.limite || 50 }}"
+  }
+}
+```
+
+### **Set Node (Entrada)**
+```json
+{
+  "apiKey": "sua_chave_da_casa_dos_dados",
+  "cnaes": ["7112000", "6201500", "6204000"],
+  "limite": 25
+}
+```
+
+### **Function Node (Processar)**
+```javascript
+// Processar resposta consolidada
+const dados = $input.first().json;
+
+console.log(`✅ ${dados.estatisticas.total_empresas} empresas encontradas`);
+console.log(`📊 ${dados.estatisticas.total_cnaes_consultados} CNAEs consultados`);
+
+// Retornar empresas processadas
+return dados.empresas.map(empresa => ({
+  json: {
+    cnpj: empresa.cnpj,
+    razao_social: empresa.razao_social,
+    cnae: empresa.cnae_consultado,
+    processado_em: new Date().toISOString()
+  }
+}));
+```
 
 ---
 

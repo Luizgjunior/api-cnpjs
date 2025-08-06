@@ -260,7 +260,7 @@ router.get('/', (req, res) => {
       }
     },
     exemplos_curl: {
-      multiplos_com_limite: `curl -X POST http://localhost:3000/consultar-empresa \\
+             producao_railway: `curl -X POST https://web-production-720d.up.railway.app/consultar-empresa \\
 -H "Content-Type: application/json" \\
 -d '{
   "apiKey": "sua_chave_aqui",
@@ -268,7 +268,7 @@ router.get('/', (req, res) => {
   "tipo_resultado": "simples",
   "limite_por_cnae": 25
 }'`,
-      sem_limite: `curl -X POST http://localhost:3000/consultar-empresa \\
+       local: `curl -X POST http://localhost:3000/consultar-empresa \\
 -H "Content-Type: application/json" \\
 -d '{
   "apiKey": "sua_chave_aqui",
