@@ -4,7 +4,7 @@ API REST em Node.js para consultar empresas por código CNAE usando a [Casa dos 
 
 ## 🚀 Deploy Rápido
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/VWy6I1?referralCode=DElEMs)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/nodejs)
 
 ## 📋 Funcionalidades
 
@@ -26,8 +26,8 @@ API REST em Node.js para consultar empresas por código CNAE usando a [Casa dos 
 
 ### 1. Clone o repositório
 ```bash
-git clone https://github.com/seu-usuario/api-cnae-empresas.git
-cd api-cnae-empresas
+git clone https://github.com/Luizgjunior/api-cnpjs.git
+cd api-cnpjs
 ```
 
 ### 2. Instale as dependências
